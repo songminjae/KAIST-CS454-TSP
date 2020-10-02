@@ -26,40 +26,47 @@ def main():
         print("this is generation #", iter)
         ## evaluate fitness ##
         fit_list = eval_fit(pop)
+        print(fit_list)
         ## select as parent ##
-        # print("shit", fit_list)
         parent_index = tournament_selection(fit_list, parent_number)
         # print("this should be 10", len(parent_index))
         if iter == generation_limit:
             print("almost there")
+            parent_index = tournament_selection(fit_list, 1)
             break
         # we should do cross over with <pop> using <parent_index>
         ## create offs ##
         parent = pop[:]
         pop = []
         # print("original_parent_len", len(parent))
-        for i in range(len(parent) - elite_number):
+        for i in range(len(parent)):
             parent_list = random.sample(parent_index, 2)
+            # print("hh", parent_list)
             child = crossover(
                 parent[parent_list[0]], parent[parent_list[1]])
             pop.append(child)
         # print("offs len 92", len(pop))
         # elite_number 만큼 pop에 추가해줘야함
         ## mutate pop(children) ##
-        mutate_result = mutate_offs(pop, mutation_rate)
+        semi_mutate_result = mutate_offs(pop, mutation_rate)
+        child_fit_list = eval_fit(semi_mutate_result)
+        # print(len(child_fit_list), "should be 100")
+        child_best_index = tournament_selection(child_fit_list, 20)
+        mutate_result = []
+        for x in child_best_index:
+            mutate_result.append(semi_mutate_result[x])
+        # print(len(mutate_result), "this should 20")
         ## add elites ##
         # print("fit_len 100", len(fit_list))
-        elite_index = tournament_selection(fit_list, elite_number)
-        # print("elite_len 8", len(elite_index))
+        elite_index = tournament_selection(fit_list, 80)
+        # print("this is elite", elite_index)
+        # print("elite_len 80", len(elite_index))
         for index in elite_index:
             mutate_result.append(parent[index])
         # print("this should be 100", len(mutate_result))
         pop = mutate_result[:]
 
-    if fit_list[parent_index[0]] > fit_list[parent_index[1]]:
-        final_index = parent_index[1]
-    else:
-        final_index = parent_index[0]
+    final_index = parent_index[0]
     make_solution(pop[final_index])
     print("beast dist", fit_list[final_index])
 
@@ -100,7 +107,7 @@ def handle_args():
     parser.add_argument("-e", "--elite_number",
                         default=8, help="elite number should not bigger than parent", type=int)
     parser.add_argument("-m", "--mutation_rate",
-                        default=0.2, help="mutation rate", type=float)
+                        default=0.4, help="mutation rate", type=float)
     args = parser.parse_args()
     return args.file_name, args.population_size, args.fitness_evaluation, args.generation_size, args.parent_number, args.elite_number, args.mutation_rate
 
@@ -198,7 +205,18 @@ def distance(route):
 # choose limit number of routes with better fitness using tournament selec
 def tournament_selection(fit_list, limit):  # fit_list = [fit_1, fit_2, ...]
     result = list(range(len(fit_list)))
-    # print(fit_list)
+    if len(fit_list) // limit == 1:
+        early_return = []
+        for i in range(len(result)):
+            early_return.append((result[i], fit_list[result[i]]))
+        early_return.sort(key=lambda x: x[1])
+        while len(early_return) != limit:
+            early_return.pop()
+        early = []
+        for i in range(len(early_return)):
+            early.append(early_return[i][0])
+        return early
+
     while len(result) > limit:
         match_num = len(result) // 2
         selected = []
