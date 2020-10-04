@@ -8,14 +8,15 @@ import random
 class TSP:
     def __init__(self):
         self.coordinates = []
+        self.counter = 0
 
 
 def main():
-    f, pop_size, fitness_limit, generation_limit, parent_number, elite_number, mutation_rate, neighbor_size, crossover_method, padding_number, improve_limit = handle_args()
+    f, pop_size, fitness_limit, generation_limit, parent_number, elite_number, mutation_rate, neighbor_size, crossover_method, padding_number, improve_limit, is_greedy = handle_args()
     load_file(f)
     # 무작위로 뽑은 경로들의 집합 - <var_route>  [ [1, 2, 3, ...], [2, 3, 1, ...], ... ]
     ## initial population ##
-    var_route, var_route_fit = init_pop(pop_size, padding_number)
+    var_route, var_route_fit = init_pop(pop_size, padding_number, is_greedy)
     print("init pop's fitness", var_route_fit)
     local_route, local_route_fit = local_search(
         var_route, var_route_fit, neighbor_size, fitness_limit, improve_limit)
@@ -153,26 +154,28 @@ def handle_args():
     parser.add_argument("-file", "--file_name", default="rl11849.tsp")
     parser.add_argument("-p", "--population_size", default=5,
                         help="size of population", type=int)
-    parser.add_argument("-f", "--fitness_evaluation", default=2000,
+    parser.add_argument("-l", "--local_fitness_evaluation", default=2000,
                         help=" fitness evaluation limit for local search!!", type=int)
     parser.add_argument("-g", "--generation_size",
-                        default=10, help="generation limit", type=int)
+                        default=200, help="generation limit", type=int)
     parser.add_argument("-parent", "--parent_number",
                         default=2, help="number of parent", type=int)
     parser.add_argument("-e", "--elite_number",
                         default=3, help="elite number should not bigger than parent", type=int)
     parser.add_argument("-m", "--mutation_rate",
-                        default=0.0005, help="mutation rate 11849 * rate", type=float)
+                        default=0.0001, help="mutation rate 11849 * rate", type=float)
     parser.add_argument("-n", "--neighbor_size",
                         default=50, help="neighbor size", type=int)
     parser.add_argument("-c", "--crossover_method",
                         default=0, help="0 for normal, 1 TMC, 2 CX ", type=int)
     parser.add_argument("-padd", "--padding_number",
-                        default=100, help="padding for init", type=int)
+                        default=0, help="padding for init", type=int)
     parser.add_argument("-i", "--improve_limit",
                         default=0.0001, help="limit for improvement", type=float)
+    parser.add_argument("-greedy", "--is_greedy",
+                        default=1, help="0 for not using greedy, 1 for greedy", type=int)
     args = parser.parse_args()
-    return args.file_name, args.population_size, args.fitness_evaluation, args.generation_size, args.parent_number, args.elite_number, args.mutation_rate, args.neighbor_size, args.crossover_method, args.padding_number, args.improve_limit
+    return args.file_name, args.population_size, args.local_fitness_evaluation, args.generation_size, args.parent_number, args.elite_number, args.mutation_rate, args.neighbor_size, args.crossover_method, args.padding_number, args.improve_limit, args.is_greedy
 
 
 def make_solution(path):
@@ -181,21 +184,27 @@ def make_solution(path):
             f.write(str(i + 1) + "\n")
 
 
-def init_pop(pop_size, padding_number):
+def init_pop(pop_size, padding_number, is_greedy):  # is_greedy 가 1이면 greedy, 0이면 x
     var_route = list()
     var_route_fit = []
     individual = list(range(len(tsp.coordinates)))  # 무작위 경로 하나
     for i in range(pop_size):
         # random.shuffle(individual)
         # var_route.append(individual)
-        shuffled = individual[:]
-        random.shuffle(shuffled)
+        if is_greedy == 0:
+            shuffled = individual[:]
+            random.shuffle(shuffled)
+        else:
+            shuffled = make_greedy_route()
         ##better than 100 ?? ##
         best = shuffled[:]
         trial = shuffled[:]
         best_fit = distance(shuffled)
         for i in range(padding_number):
-            random.shuffle(trial)
+            if is_greedy == 0:
+                random.shuffle(trial)
+            else:
+                trial = make_greedy_route()
             d = distance(trial)
             if(best_fit > d):
                 best_fit = d
@@ -203,10 +212,29 @@ def init_pop(pop_size, padding_number):
 
         var_route.append(best)
         var_route_fit.append(best_fit)
+        print("init_pop's fit", best_fit)
     return var_route, var_route_fit
 
 
+def make_greedy_route():
+    random_start = random.randint(0, len(tsp.coordinates) - 1)
+    greedy_route = [random_start]
+    for i in range(len(tsp.coordinates) - 1):
+        start = greedy_route[len(greedy_route)-1]
+        dist = 99999999
+        greedy_index = 0
+        for j in range(len(tsp.coordinates)):
+            search_dist = distance_between(start, tsp.coordinates[j][0] - 1)
+            if search_dist < dist:
+                if j not in greedy_route:
+                    dist = search_dist
+                    greedy_index = j
+        greedy_route.append(greedy_index)
+    return greedy_route
+
+
 def eval_fit(route_list):
+    tsp.counter += 1
     print("evaluating fitness")
     fit_list = [0] * len(route_list)
     for i in range(len(route_list)):
@@ -365,13 +393,22 @@ def distance(route):
         if i != len(route) - 1:
             next = i + 1
         coordi = tsp.coordinates
+        # print(coordi[route[i]])
         dist = dist + \
             math.hypot((coordi[route[i]][1] - coordi[route[next]][1]),
                        (coordi[route[i]][2] - coordi[route[next]][2]))
     return dist
 
 
+def distance_between(a, b):
+    coordi = tsp.coordinates
+    dist = math.hypot(coordi[a][1] - coordi[b][1],
+                      (coordi[a][2] - coordi[b][2]))
+    return dist
+
 # choose limit number of routes with better fitness using tournament selec
+
+
 def tournament_selection(fit_list, limit):  # fit_list = [fit_1, fit_2, ...]
     result = list(range(len(fit_list)))
     if len(fit_list) // limit == 1:
@@ -417,3 +454,4 @@ def tournament_selection(fit_list, limit):  # fit_list = [fit_1, fit_2, ...]
 if __name__ == '__main__':
     tsp = TSP()
     main()
+    print("total call of eval_fit function is:", tsp.counter)
