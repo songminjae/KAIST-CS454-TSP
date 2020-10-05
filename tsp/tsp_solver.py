@@ -12,22 +12,34 @@ class TSP:
 
 
 def main():
-    f, pop_size, fitness_limit, generation_limit, parent_number, elite_number, mutation_rate, neighbor_size, crossover_method, padding_number, improve_limit, is_greedy = handle_args()
+    f, pop_size, fitness_limit, generation_limit, parent_number, elite_number, mutation_rate, neighbor_size, crossover_method, padding_number, improve_limit, is_greedy, is_memetic = handle_args()
     load_file(f)
     # 무작위로 뽑은 경로들의 집합 - <var_route>  [ [1, 2, 3, ...], [2, 3, 1, ...], ... ]
     ## initial population ##
     var_route, var_route_fit = init_pop(pop_size, padding_number, is_greedy)
     print("init pop's fitness", var_route_fit)
-    local_route, local_route_fit = local_search(
-        var_route, var_route_fit, neighbor_size, fitness_limit, improve_limit)
+    ######################for memetic algorithm##########################
+    if is_memetic == 0:
+        local_route, local_route_fit = local_search(
+            var_route, var_route_fit, neighbor_size, fitness_limit, improve_limit)
+    else:
+        local_route = var_route[:]
+        local_route_fit = var_route_fit[:]
+    #######################memetic algorithm#############################
     print("local fitness", local_route_fit)
     iter = 0
     pop = local_route[:]
     while iter <= generation_limit:  # 원래는 generation_limit사용해야함
         iter += 1
         print("this is generation #", iter)
-        ## evaluate fitness ##
-        fit_list = eval_fit(pop)
+        ######################for memetic algorithm###################
+        if is_memetic == 0:
+            ## evaluate fitness ##
+            fit_list = eval_fit(pop)
+        else:
+            using_pop = pop[:]
+            pop, fit_list = local_search(using_pop, eval_fit(
+                using_pop), neighbor_size, fitness_limit, improve_limit)
         print(fit_list)
         ## select as parent ##
         parent_index = tournament_selection(fit_list, parent_number)
@@ -174,8 +186,10 @@ def handle_args():
                         default=0.0001, help="limit for improvement", type=float)
     parser.add_argument("-greedy", "--is_greedy",
                         default=1, help="0 for not using greedy, 1 for greedy", type=int)
+    parser.add_argument("-memetic", "--is_memetic",
+                        default=1, help="0 for not memetic local search at init pop, 1 for memetic local search at each loop", type=int)
     args = parser.parse_args()
-    return args.file_name, args.population_size, args.local_fitness_evaluation, args.generation_size, args.parent_number, args.elite_number, args.mutation_rate, args.neighbor_size, args.crossover_method, args.padding_number, args.improve_limit, args.is_greedy
+    return args.file_name, args.population_size, args.local_fitness_evaluation, args.generation_size, args.parent_number, args.elite_number, args.mutation_rate, args.neighbor_size, args.crossover_method, args.padding_number, args.improve_limit, args.is_greedy, args.is_memetic
 
 
 def make_solution(path):
